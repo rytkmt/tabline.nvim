@@ -11,13 +11,6 @@ M.options = {
 }
 M.total_tab_length = 6
 
-function M.toggle_show_all_buffers()
-  local data = vim.fn.json_decode(vim.g.tabline_tab_data)
-  data[vim.fn.tabpagenr()].show_all_buffers = not data[vim.fn.tabpagenr()].show_all_buffers
-  vim.g.tabline_tab_data = vim.fn.json_encode(data)
-  vim.cmd([[redrawtabline]])
-end
-
 -- Use luatab as reference:
 -- https://github.com/alvarosevilla95/luatab.nvim
 
@@ -84,7 +77,7 @@ function M._new_tab_data(tabnr, data)
     tabnr = vim.fn.tabpagenr()
   end
   if data[tabnr] == nil then
-    data[tabnr] = { name = tabnr .. "", show_all_buffers = true, allowed_buffers = {} }
+    data[tabnr] = { name = tabnr .. "", allowed_buffers = {} }
   end
   vim.g.tabline_tab_data = vim.fn.json_encode(data)
 end
@@ -128,9 +121,6 @@ function M.tab_new(...)
     end
   end
   M._current_tab(current_tab)
-  if #args >= 1 then
-    M.toggle_show_all_buffers()
-  end
 end
 
 function Tab:render()
@@ -448,7 +438,6 @@ end
 function M.clear_bind_buffers()
   local data = vim.fn.json_decode(vim.g.tabline_tab_data)
   data[vim.fn.tabpagenr()].allowed_buffers = {}
-  data[vim.fn.tabpagenr()].show_all_buffers = true
   vim.g.tabline_tab_data = vim.fn.json_encode(data)
   vim.cmd([[redrawtabline]])
 end
@@ -469,7 +458,6 @@ function M._bind_buffers(args)
   end
   local data = vim.fn.json_decode(vim.g.tabline_tab_data)
   data[vim.fn.tabpagenr()].allowed_buffers = filelist
-  data[vim.fn.tabpagenr()].show_all_buffers = false
   vim.g.tabline_tab_data = vim.fn.json_encode(data)
   vim.cmd([[redrawtabline]])
 end
@@ -562,8 +550,6 @@ function M.tabline_buffers(opt)
     if vim.fn.buflisted(b) ~= 0 and vim.fn.getbufvar(b, "&buftype") ~= "quickfix" then
       local buffer = Buffer:new({ bufnr = b, options = opt })
       if buffer.visible then
-        buffers[#buffers + 1] = buffer
-      elseif current_tab and current_tab.show_all_buffers then
         buffers[#buffers + 1] = buffer
       else
         local filepath = vim.fn.expand("#" .. buffer.bufnr .. ":p:~")
@@ -844,8 +830,6 @@ function M.setup(opts)
     endfunction
 
     command! -nargs=1 TablineTabRename lua require('tabline').tab_rename(<f-args>)
-
-    command! TablineToggleShowAllBuffers lua require('tabline').toggle_show_all_buffers()
   ]])
 
   function _G.tabline_buffers_tabs()
