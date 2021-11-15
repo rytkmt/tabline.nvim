@@ -132,24 +132,24 @@ end
 function Tab:separator()
   local hl = ""
   if self.current and self.first then
-    hl = "%#tabline_a_to_c#" .. self.options.section_right
+    hl = "%#tabline_current_to_none#" .. self.options.section_right
   elseif self.first then
-    hl = "%#tabline_b_to_c#" .. self.options.section_right
+    hl = "%#tabline_inactive_to_none#" .. self.options.section_right
   elseif self.aftercurrent then
-    hl = "%#tabline_b_to_a#" .. self.options.section_right
+    hl = "%#tabline_inactive_to_current#" .. self.options.section_right
   elseif self.current then
-    hl = "%#tabline_a_to_b#" .. self.options.section_right
+    hl = "%#tabline_current_to_inactive#" .. self.options.section_right
   else
-    hl = "%#tabline_a_to_b#" .. self.options.component_right
+    hl = "%#tabline_current_to_inactive#" .. self.options.component_right
   end
   return hl
 end
 
 function Tab:hl()
   if self.current then
-    return "%#tabline_a_normal#"
+    return "%#tabline_current_buffer#"
   else
-    return "%#tabline_b_normal#"
+    return "%#tabline_inactive_buffer#"
   end
 end
 
@@ -207,12 +207,12 @@ function M.format_tabs(tabs, max_length)
     end
     if total_length > max_length then
       if before ~= nil then
-        line = "%#tabline_b_to_c#" .. M.options.section_right .. "%#tabline_b_normal#" .. "..." .. line
+        line = "%#tabline_inactive_to_none#" .. M.options.section_right .. "%#tabline_inactive_buffer#" .. "..." .. line
       end
       if after ~= nil and i == 1 then
-        line = line .. "%#tabline_b_to_a#" .. M.options.section_right .. "%#tabline_b_normal#" .. "..."
+        line = line .. "%#tabline_inactive_to_current#" .. M.options.section_right .. "%#tabline_inactive_buffer#" .. "..."
       elseif after ~= nil then
-        line = line .. "%#tabline_a_to_b#" .. M.options.component_right .. "%#tabline_b_normal#" .. "..."
+        line = line .. "%#tabline_current_to_inactive#" .. M.options.component_right .. "%#tabline_inactive_buffer#" .. "..."
       end
     end
   end
@@ -332,15 +332,15 @@ end
 function Buffer:separator()
   local hl = ""
   if self.current and self.last then
-    hl = "%#tabline_a_to_c#" .. self.options.section_left
+    hl = "%#tabline_current_to_none#" .. self.options.section_left
   elseif self.last then
-    hl = "%#tabline_b_to_c#" .. self.options.section_left
+    hl = "%#tabline_inactive_to_none#" .. self.options.section_left
   elseif self.beforecurrent then
-    hl = "%#tabline_b_to_a#" .. self.options.section_left
+    hl = "%#tabline_inactive_to_current#" .. self.options.section_left
   elseif self.current then
-    hl = "%#tabline_a_to_b#" .. self.options.section_left
+    hl = "%#tabline_current_to_inactive#" .. self.options.section_left
   else
-    hl = "%#tabline_a_to_b#" .. self.options.component_left
+    hl = "%#tabline_current_to_inactive#" .. self.options.component_left
   end
   return hl
 end
@@ -402,12 +402,12 @@ function M.format_buffers(buffers, max_length)
     end
     if total_length > max_length then
       if before ~= nil and i == 1 then
-        line = "%#tabline_b_normal#..." .. "%#tabline_b_to_a#" .. M.options.section_left .. line
+        line = "%#tabline_inactive_buffer#..." .. "%#tabline_inactive_to_current#" .. M.options.section_left .. line
       elseif before ~= nil then
-        line = "%#tabline_b_normal#..." .. M.options.component_left .. line
+        line = "%#tabline_inactive_buffer#..." .. M.options.component_left .. line
       end
       if after ~= nil then
-        line = line .. "..." .. "%#tabline_b_to_c#" .. M.options.section_left .. "%#tabline_c_normal#"
+        line = line .. "..." .. "%#tabline_inactive_to_none#" .. M.options.section_left .. "%#tabline_none#"
       end
     end
   end
@@ -524,13 +524,13 @@ end
 
 function Buffer:hl()
   if self.current and self.modified then
-    return "%#tabline_a_normal_italic#"
+    return "%#tabline_current_buffer_italic#"
   elseif self.current then
-    return "%#tabline_a_normal#"
+    return "%#tabline_current_buffer#"
   elseif self.modified then
-    return "%#tabline_b_normal_bold_italic#"
+    return "%#tabline_inactive_buffer_bold_italic#"
   else
-    return "%#tabline_b_normal_bold#"
+    return "%#tabline_inactive_buffer_bold#"
   end
 end
 
@@ -584,35 +584,29 @@ function M.tabline_tabs(opt)
 end
 
 function M.highlight_groups()
-  local fg, bg
-  fg = M.extract_highlight_colors("tabline_b_normal", "fg")
-  bg = M.extract_highlight_colors("tabline_b_normal", "bg")
-  M.create_component_highlight_group({ bg = bg, fg = fg, gui = "bold" }, "b_normal_bold")
-  M.create_component_highlight_group({ bg = bg, fg = fg, gui = "italic" }, "b_normal_italic")
-  M.create_component_highlight_group({ bg = bg, fg = fg, gui = "bold,italic" }, "b_normal_bold_italic")
-  fg = M.extract_highlight_colors("tabline_a_normal", "fg")
-  bg = M.extract_highlight_colors("tabline_a_normal", "bg")
-  M.create_component_highlight_group({ bg = bg, fg = fg, gui = "bold" }, "a_normal_bold")
-  M.create_component_highlight_group({ bg = bg, fg = fg, gui = "italic" }, "a_normal_italic")
-  M.create_component_highlight_group({ bg = bg, fg = fg, gui = "bold,italic" }, "a_normal_bold_italic")
-  fg = M.extract_highlight_colors("tabline_a_normal", "bg")
-  bg = M.extract_highlight_colors("tabline_b_normal", "bg")
-  M.create_component_highlight_group({ bg = bg, fg = fg }, "a_to_b")
-  fg = M.extract_highlight_colors("tabline_b_normal", "bg")
-  bg = M.extract_highlight_colors("tabline_a_normal", "bg")
-  M.create_component_highlight_group({ bg = bg, fg = fg }, "b_to_a")
-  fg = M.extract_highlight_colors("tabline_b_normal", "bg")
-  bg = M.extract_highlight_colors("tabline_c_normal", "bg")
-  M.create_component_highlight_group({ bg = bg, fg = fg }, "b_to_c")
-  fg = M.extract_highlight_colors("tabline_c_normal", "bg")
-  bg = M.extract_highlight_colors("tabline_b_normal", "bg")
-  M.create_component_highlight_group({ bg = bg, fg = fg }, "c_to_b")
-  fg = M.extract_highlight_colors("tabline_a_normal", "bg")
-  bg = M.extract_highlight_colors("tabline_c_normal", "bg")
-  M.create_component_highlight_group({ bg = bg, fg = fg }, "a_to_c")
-  fg = M.extract_highlight_colors("tabline_c_normal", "bg")
-  bg = M.extract_highlight_colors("tabline_a_normal", "bg")
-  M.create_component_highlight_group({ bg = bg, fg = fg }, "c_to_a")
+  local current_fg = M.extract_highlight_colors("tabline_current_buffer", "fg")
+  local current_bg = M.extract_highlight_colors("tabline_current_buffer", "bg")
+  local inactive_fg = M.extract_highlight_colors("tabline_inactive_buffer", "fg")
+  local inactive_bg = M.extract_highlight_colors("tabline_inactive_buffer", "bg")
+
+  M.create_component_highlight_group({ bg = inactive_bg, fg = inactive_bg }, "none")
+
+  M.create_component_highlight_group({ bg = inactive_bg, fg = inactive_fg, gui = "bold" }, "inactive_buffer_bold")
+  M.create_component_highlight_group({ bg = inactive_bg, fg = inactive_fg, gui = "italic" }, "inactive_buffer_italic")
+  M.create_component_highlight_group({ bg = inactive_bg, fg = inactive_fg, gui = "bold,italic" }, "inactive_buffer_bold_italic")
+
+  M.create_component_highlight_group({ bg = current_bg, fg = current_fg, gui = "bold" }, "current_buffer_bold")
+  M.create_component_highlight_group({ bg = current_bg, fg = current_fg, gui = "italic" }, "current_buffer_italic")
+  M.create_component_highlight_group({ bg = current_bg, fg = current_fg, gui = "bold,italic" }, "current_buffer_bold_italic")
+
+  M.create_component_highlight_group({ bg = inactive_bg, fg = current_bg }, "current_to_inactive")
+  M.create_component_highlight_group({ bg = current_bg, fg = inactive_bg }, "inactive_to_current")
+
+  M.create_component_highlight_group({ bg = inactive_bg, fg = inactive_bg }, "inactive_to_none")
+  M.create_component_highlight_group({ bg = inactive_bg, fg = inactive_bg }, "none_to_inactive")
+
+  M.create_component_highlight_group({ bg = inactive_bg, fg = current_bg }, "current_to_none")
+  M.create_component_highlight_group({ bg = current_bg, fg = inactive_bg }, "none_to_current")
 end
 
 function M.mod(a, b)
@@ -736,9 +730,9 @@ function M.setup(opts)
     hi default link TablineActive          PmenuSel
     hi default link TablineHidden          TabLine
     hi default link TablineFill            TabLineFill
-    hi default link tabline_a_normal       lualine_a_normal
-    hi default link tabline_b_normal       lualine_b_normal
-    hi default link tabline_c_normal       lualine_c_normal
+
+    hi default link tabline_current_buffer  lualine_a_normal
+    hi default link tabline_inactive_buffer lualine_a_inactive
 
     command! -count TablineBufferNext             :lua require'tabline'.buffer_next()
     command! -count TablineBufferPrevious         :lua require'tabline'.buffer_previous()
