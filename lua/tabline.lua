@@ -77,7 +77,7 @@ function M._new_tab_data(tabnr, data)
     tabnr = vim.fn.tabpagenr()
   end
   if data[tabnr] == nil then
-    data[tabnr] = { name = tabnr .. "", allowed_buffers = {} }
+    data[tabnr] = { name = tabnr .. "" }
   end
   vim.g.tabline_tab_data = vim.fn.json_encode(data)
 end
@@ -92,35 +92,6 @@ function Tab:get_props()
   data = vim.fn.json_decode(vim.g.tabline_tab_data)
   self.name = data[self.tabnr].name .. " "
   return self
-end
-
-function M.tab_rename(name)
-  local data = vim.fn.json_decode(vim.g.tabline_tab_data)
-  M._new_tab_data()
-  data[vim.fn.tabpagenr()].name = name
-  vim.g.tabline_tab_data = vim.fn.json_encode(data)
-  vim.cmd([[redrawtabline]])
-end
-
-function M.tab_new(...)
-  local args = { ... }
-  if #args >= 1 then
-    vim.cmd("tablast | tabnew " .. args[1])
-  else
-    vim.cmd("tablast | tabnew")
-  end
-  M._new_tab_data()
-  local current_tab = M._current_tab()
-  if #args >= 1 then
-    current_tab.allowed_buffers[vim.fn.fnamemodify(args[1], ":p:~")] = true
-  end
-  for i, file in pairs(args) do
-    if i ~= 1 then
-      vim.cmd("edit " .. file)
-      current_tab.allowed_buffers[vim.fn.fnamemodify(file, ":p:~")] = true
-    end
-  end
-  M._current_tab(current_tab)
 end
 
 function Tab:render()
@@ -424,53 +395,6 @@ function M._current_tab(tab)
   end
 end
 
-function M.clear_bind_buffers()
-  local data = vim.fn.json_decode(vim.g.tabline_tab_data)
-  data[vim.fn.tabpagenr()].allowed_buffers = {}
-  vim.g.tabline_tab_data = vim.fn.json_encode(data)
-  vim.cmd([[redrawtabline]])
-end
-
-function M.bind_buffers(...)
-  local args = { ... }
-  M._bind_buffers(args)
-end
-
-function M._bind_buffers(args)
-  local filelist = {}
-  if #args == 0 then
-    filelist[#filelist + 1] = vim.fn.expand("%:p:~")
-  else
-    for _, buffer_name in pairs(args) do
-      filelist[#filelist + 1] = vim.fn.fnamemodify(vim.fn.expand(buffer_name), ":p:~")
-    end
-  end
-  local data = vim.fn.json_decode(vim.g.tabline_tab_data)
-  data[vim.fn.tabpagenr()].allowed_buffers = filelist
-  vim.g.tabline_tab_data = vim.fn.json_encode(data)
-  vim.cmd([[redrawtabline]])
-end
-
-function M.telescope_bind_buffers(opts)
-  local has_telescope, telescope = pcall(require, "telescope")
-  if not has_telescope then
-    error("This function requires telescope.nvim: https://github.com/nvim-telescope/telescope.nvim")
-  end
-
-  local finders = require("telescope.finders")
-  local pickers = require("telescope.pickers")
-
-  local buffers = {}
-  for b = 1, vim.fn.bufnr("$") do
-    if vim.fn.buflisted(b) ~= 0 and vim.fn.getbufvar(b, "&buftype") ~= "quickfix" then
-      local buffer = Buffer:new({ bufnr = b })
-      buffers[#buffers + 1] = "[" .. buffer.bufnr .. "]" .. " " .. buffer.name
-    end
-  end
-
-  pickers.new(opts, { prompt_title = "Custom Picker", finder = finders.new_table({ results = buffers }) }):find()
-end
-
 local function contains(list, x)
   for i, v in pairs(list) do
     if v == x then
@@ -492,7 +416,9 @@ function M.tabline_buffers(opt)
   for b = 1, vim.fn.bufnr("$") do
     if vim.fn.buflisted(b) ~= 0 and vim.fn.getbufvar(b, "&buftype") ~= "quickfix" then
       local buffer = Buffer:new({ bufnr = b, options = opt })
-      buffers[#buffers + 1] = buffer
+      if vim.fn.bufwinid(b) ~= -1 then
+        buffers[#buffers + 1] = buffer
+      end
     end
   end
 
@@ -578,9 +504,6 @@ function M.tabline_tabs(opt)
   end
   line = M.format_tabs(tabs)
   return line
-  -- local line = '%=%#TabLineFill#%999X' .. '%#tabline_a_to_c#' .. opt.section_right .. '%#tabline_a_normal#' .. ' '
-  --                  .. vim.fn.tabpagenr() .. '/' .. vim.fn.tabpagenr('$') .. ' '
-  -- return line
 end
 
 function M.highlight_groups()
@@ -607,38 +530,6 @@ function M.highlight_groups()
 
   M.create_component_highlight_group({ bg = inactive_bg, fg = current_bg }, "current_to_none")
   M.create_component_highlight_group({ bg = current_bg, fg = inactive_bg }, "none_to_current")
-end
-
-function M.mod(a, b)
-  a = a - 1
-  b = b
-  return (a - (math.floor(a / b) * b)) + 1
-end
-
-function M.buffer_next()
-  local next
-  for i, buffer in pairs(M.buffers) do
-    local next_buffer = M.buffers[M.mod(i + 1, #M.buffers)]
-    if buffer.current and next_buffer ~= nil then
-      next = next_buffer.bufnr
-    end
-  end
-  if next ~= nil then
-    vim.cmd("silent! buffer " .. next)
-  end
-end
-
-function M.buffer_previous()
-  local previous
-  for i, buffer in pairs(M.buffers) do
-    local previous_buffer = M.buffers[M.mod(i - 1, #M.buffers)]
-    if buffer.current and previous_buffer ~= nil then
-      previous = previous_buffer.bufnr
-    end
-  end
-  if previous ~= nil then
-    vim.cmd("buffer " .. previous)
-  end
 end
 
 function M.setup(opts)
@@ -734,12 +625,7 @@ function M.setup(opts)
     hi default link tabline_current_buffer  lualine_a_normal
     hi default link tabline_inactive_buffer lualine_a_inactive
 
-    command! -count TablineBufferNext             :lua require'tabline'.buffer_next()
     command! -count TablineBufferPrevious         :lua require'tabline'.buffer_previous()
-
-    command! -nargs=* -complete=file TablineTabNew :lua require'tabline'.tab_new(<f-args>)
-    command! -nargs=+ -complete=buffer TablineBuffersBind :lua require'tabline'.bind_buffers(<f-args>)
-    command! TablineBuffersClearBind :lua require'tabline'.clear_bind_buffers()
 
     function! TablineSwitchBuffer(bufnr, mouseclicks, mousebutton, modifiers)
       execute ":b " . a:bufnr
@@ -748,8 +634,6 @@ function M.setup(opts)
     function! TablineSwitchTab(tabnr, mouseclicks, mousebutton, modifiers)
       execute ":tab " . a:tabnr
     endfunction
-
-    command! -nargs=1 TablineTabRename lua require('tabline').tab_rename(<f-args>)
   ]])
 
   function _G.tabline_buffers_tabs()
