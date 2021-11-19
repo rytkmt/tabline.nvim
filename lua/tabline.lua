@@ -4,10 +4,13 @@ local term = require("tabline.term")
 
 M.options = {
   no_name = "[No Name]",
-  component_left = "",
-  component_right = "",
-  section_left = "",
-  section_right = "",
+  separate_thin = "│",
+  separate_thick = "┃",
+
+  -- component_left = "",
+  -- component_right = "",
+  -- section_left = "",
+  -- section_right = "",
 }
 M.total_tab_length = 6
 
@@ -95,32 +98,14 @@ function Tab:get_props()
 end
 
 function Tab:render()
-  local line = ""
-  line = line .. self:separator() .. self:hl() .. "%" .. self.tabnr .. "@TablineSwitchTab@" .. " " .. self.name .. "%T"
-  return line
-end
-
-function Tab:separator()
-  local hl = ""
-  if self.current and self.first then
-    hl = "%#tabline_current_to_none#" .. self.options.section_right
-  elseif self.first then
-    hl = "%#tabline_inactive_to_none#" .. self.options.section_right
-  elseif self.aftercurrent then
-    hl = "%#tabline_inactive_to_current#" .. self.options.section_right
-  elseif self.current then
-    hl = "%#tabline_current_to_inactive#" .. self.options.section_right
-  else
-    hl = "%#tabline_current_to_inactive#" .. self.options.component_right
-  end
-  return hl
+  return self:hl() .. " " .. self.name
 end
 
 function Tab:hl()
   if self.current then
-    return "%#tabline_current_buffer#"
+    return "%#tabline_current_tab#"
   else
-    return "%#tabline_inactive_buffer#"
+    return "%#tabline_inactive_tab#"
   end
 end
 
@@ -129,12 +114,10 @@ function Tab:len()
   return vim.fn.strchars(" " .. self.name) + margin
 end
 
-function M.format_tabs(tabs, max_length)
-  if max_length == nil then
-    max_length = math.floor(vim.o.columns / 3)
-  end
+function M.format_tabs(tabs)
+  local max_count = 5
   local line = ""
-  local total_length = 0
+  local total_count = 1
   local current
   for i, tab in pairs(tabs) do
     if tab.current then
@@ -146,51 +129,46 @@ function M.format_tabs(tabs, max_length)
     local t = Tab:new({ tabnr = vim.fn.tabpagenr() })
     t.current = true
     t.last = true
-    total_length = t:len()
     line = t:render()
   else
     line = line .. current_tab:render()
-    total_length = current_tab:len()
     local i = 0
     local before, after
-    while true do
-      i = i + 1
+
+    local before_over = false
+    local after_over = false
+    for i = 1, 5 do
       before = tabs[current - i]
       after = tabs[current + i]
-      if before == nil and after == nil then
-        break
-      end
+
       if before then
-        total_length = total_length + before:len()
+        if total_count < max_count then
+          line = before:render() .. line
+          total_count = total_count + 1
+        else
+          before_over = true
+        end
       end
+
       if after then
-        total_length = total_length + after:len()
-      end
-      if total_length > max_length then
-        break
-      end
-      if before then
-        line = before:render() .. line
-      end
-      if after then
-        line = line .. after:render()
+        if total_count < max_count then
+          line = line .. after:render()
+          total_count = total_count + 1
+        else
+          after_over = true
+        end
       end
     end
-    if total_length > max_length then
-      if before ~= nil then
-        line = "%#tabline_inactive_to_none#" .. M.options.section_right .. "%#tabline_inactive_buffer#" .. "..." .. line
-      end
-      if after ~= nil and i == 1 then
-        line = line .. "%#tabline_inactive_to_current#" .. M.options.section_right .. "%#tabline_inactive_buffer#" .. "..."
-      elseif after ~= nil then
-        line = line .. "%#tabline_current_to_inactive#" .. M.options.component_right .. "%#tabline_inactive_buffer#" .. "..."
-      end
+
+    if before_over then
+      line = "%#tabline_inactive_tab#..." .. line
+    end
+    if after_over then
+      line = line .. "%#tabline_inactive_tab#..."
     end
   end
-  M.total_tab_length = total_length
-  if M.options.always_show_tabs then
-    line = "%=%#TabLineFill#%999X" .. line
-  elseif #tabs == 1 and tabs[1].name ~= "1 " then
+  M.total_tab_length = total_count
+  if #tabs == 1 and tabs[1].name ~= "1 " then
     line = "%=%#TabLineFill#%999X" .. line
   elseif #tabs > 1 then
     line = "%=%#TabLineFill#%999X" .. line
@@ -221,7 +199,6 @@ function Buffer:get_props()
   self.buftype = vim.fn.getbufvar(self.bufnr, "&buftype")
   self.filetype = vim.fn.getbufvar(self.bufnr, "&filetype")
   self.modified = vim.fn.getbufvar(self.bufnr, "&modified") == 1
-  self.modified_icon = self.modified and " " or ""
   local dev, devhl
   local status, _ = pcall(require, "nvim-web-devicons")
   if not status then
@@ -258,7 +235,7 @@ end
 
 function Buffer:len()
   local margin = 2
-  return vim.fn.strchars(" " .. " " .. " " .. self.name .. " " .. self.modified_icon .. " ") + margin
+  return vim.fn.strchars(" " .. " " .. " " .. self.name .. " ") + margin
 end
 
 function Buffer:name()
@@ -282,38 +259,30 @@ function Buffer:name()
   return vim.fn.fnamemodify(self.file, ":p:t")
 end
 
+function Buffer:hl()
+  if self.current and self.modified then
+    return "%#tabline_current_modified_buffer#"
+  elseif self.current then
+    return "%#tabline_current_buffer#"
+  elseif self.modified then
+    return "%#tabline_inactive_modified_buffer#"
+  else
+    return "%#tabline_inactive_buffer#"
+  end
+end
+
 function Buffer:render()
   local line = self:hl()
-    .. "%"
-    .. self.bufnr
-    .. "@TablineSwitchBuffer@"
     .. " "
     .. self.icon
     .. " "
     .. self.name
     .. " "
-    .. self.modified_icon
-  if M.options.show_bufnr then
-    line = line .. "[" .. self.bufnr .. "] "
-  end
-  line = line .. "%T" .. self:separator()
-  return line
-end
 
-function Buffer:separator()
-  local hl = ""
-  if self.current and self.last then
-    hl = "%#tabline_current_to_none#" .. self.options.section_left
-  elseif self.last then
-    hl = "%#tabline_inactive_to_none#" .. self.options.section_left
-  elseif self.beforecurrent then
-    hl = "%#tabline_inactive_to_current#" .. self.options.section_left
-  elseif self.current then
-    hl = "%#tabline_current_to_inactive#" .. self.options.section_left
-  else
-    hl = "%#tabline_current_to_inactive#" .. self.options.component_left
-  end
-  return hl
+    if self.current then
+      line = "%#tabline_current_buffer# %#tabline_current_accent#▍" .. line
+    end
+  return line
 end
 
 function Buffer:window_count()
@@ -373,12 +342,13 @@ function M.format_buffers(buffers, max_length)
     end
     if total_length > max_length then
       if before ~= nil and i == 1 then
-        line = "%#tabline_inactive_buffer#..." .. "%#tabline_inactive_to_current#" .. M.options.section_left .. line
+        -- 起こる？
+        line = "%#tabline_inactive_accent#@@@" .. line
       elseif before ~= nil then
-        line = "%#tabline_inactive_buffer#..." .. M.options.component_left .. line
+        line = "%#tabline_inactive_accent#..." .. line
       end
       if after ~= nil then
-        line = line .. "..." .. "%#tabline_inactive_to_none#" .. M.options.section_left .. "%#tabline_none#"
+        line = line .. "%#tabline_inactive_accent#...%#tabline_none#"
       end
     end
   end
@@ -448,17 +418,6 @@ function M.tabline_buffers(opt)
   return line
 end
 
-function Buffer:hl()
-  if self.current and self.modified then
-    return "%#tabline_current_buffer_italic#"
-  elseif self.current then
-    return "%#tabline_current_buffer#"
-  elseif self.modified then
-    return "%#tabline_inactive_buffer_bold_italic#"
-  else
-    return "%#tabline_inactive_buffer_bold#"
-  end
-end
 
 function M.initialize_tab_data(opt)
   local tabs = {}
@@ -511,6 +470,7 @@ function M.highlight_groups()
   local current_bg = M.extract_highlight_colors("tabline_current_buffer", "bg")
   local inactive_fg = M.extract_highlight_colors("tabline_inactive_buffer", "fg")
   local inactive_bg = M.extract_highlight_colors("tabline_inactive_buffer", "bg")
+  -- local modified_accent = "#"
 
   M.create_component_highlight_group({ bg = inactive_bg, fg = inactive_bg }, "none")
 
@@ -552,38 +512,38 @@ function M.setup(opts)
     opts.options = {}
   end
 
-  local status, _ = pcall(require, "lualine.config")
-  if status then
-    local lc = require("lualine.config")
-    local cs, ss
-    if lc.config then
-      cs = lc.config.options.component_separators
-      ss = lc.config.options.section_separators
-      M.options.component_left = cs[1]
-      M.options.component_right = cs[2]
-      M.options.section_left = ss[1]
-      M.options.section_right = ss[2]
-    elseif lc.get_config then
-      cs = lc.get_config().options.component_separators
-      ss = lc.get_config().options.section_separators
-      M.options.component_left = cs.left
-      M.options.component_right = cs.right
-      M.options.section_left = ss.left
-      M.options.section_right = ss.right
-    else
-      error("Unable to load separators from lualine")
-    end
-  end
+  -- local status, _ = pcall(require, "lualine.config")
+  -- if status then
+  --   local lc = require("lualine.config")
+  --   local cs, ss
+  --   if lc.config then
+  --     cs = lc.config.options.component_separators
+  --     ss = lc.config.options.section_separators
+  --     M.options.component_left = cs[1]
+  --     M.options.component_right = cs[2]
+  --     M.options.section_left = ss[1]
+  --     M.options.section_right = ss[2]
+  --   elseif lc.get_config then
+  --     cs = lc.get_config().options.component_separators
+  --     ss = lc.get_config().options.section_separators
+  --     M.options.component_left = cs.left
+  --     M.options.component_right = cs.right
+  --     M.options.section_left = ss.left
+  --     M.options.section_right = ss.right
+  --   else
+  --     error("Unable to load separators from lualine")
+  --   end
+  -- end
 
-  if opts.options.component_separators ~= nil then
-    M.options.component_left = opts.options.component_separators[1]
-    M.options.component_right = opts.options.component_separators[2]
-  end
-
-  if opts.options.section_separators ~= nil then
-    M.options.section_left = opts.options.section_separators[1]
-    M.options.section_right = opts.options.section_separators[2]
-  end
+  -- if opts.options.component_separators ~= nil then
+  --   M.options.component_left = opts.options.component_separators[1]
+  --   M.options.component_right = opts.options.component_separators[2]
+  -- end
+  --
+  -- if opts.options.section_separators ~= nil then
+  --   M.options.section_left = opts.options.section_separators[1]
+  --   M.options.section_right = opts.options.section_separators[2]
+  -- end
 
   if opts.options.max_bufferline_percent then
     if opts.options.max_bufferline_percent <= 100 and opts.options.max_bufferline_percent >= 0 then
@@ -595,12 +555,6 @@ function M.setup(opts)
     M.options.show_tabs_always = opts.options.show_tabs_always or opts.options.always_show_tabs
   else
     M.options.show_tabs_always = vim.g.tabline_show_tabs_always
-  end
-
-  if opts.options.show_bufnr then
-    M.options.show_bufnr = opts.options.show_bufnr
-  else
-    M.options.show_bufnr = vim.g.tabline_show_bufnr
   end
 
   if opts.options.show_devicons then
@@ -625,14 +579,19 @@ function M.setup(opts)
     hi default link tabline_current_buffer  lualine_a_normal
     hi default link tabline_inactive_buffer lualine_a_inactive
 
+    hi tabline_current_buffer guibg=#333333 guifg=#FFFFFF
+    hi tabline_current_modified_buffer guibg=#333333 guifg=#d48585
+    hi tabline_inactive_buffer guibg=#000000 guifg=#444444
+    hi tabline_inactive_modified_buffer guibg=#000000 guifg=#9b6161
+    hi tabline_current_accent guibg=#333333 guifg=#5FABE9
+    hi tabline_inactive_accent guibg=#000000 guifg=#5FABE9
+    hi tabline_current_tab guibg=#ddbb88 guifg=#202020
+    hi tabline_inactive_tab guibg=#202020 guifg=#ddbb88
+
     command! -count TablineBufferPrevious         :lua require'tabline'.buffer_previous()
 
     function! TablineSwitchBuffer(bufnr, mouseclicks, mousebutton, modifiers)
       execute ":b " . a:bufnr
-    endfunction
-
-    function! TablineSwitchTab(tabnr, mouseclicks, mousebutton, modifiers)
-      execute ":tab " . a:tabnr
     endfunction
   ]])
 
