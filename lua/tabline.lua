@@ -6,13 +6,8 @@ M.options = {
   no_name = "[No Name]",
   separate_thin = "│",
   separate_thick = "┃",
-
-  -- component_left = "",
-  -- component_right = "",
-  -- section_left = "",
-  -- section_right = "",
 }
-M.total_tab_length = 6
+M.total_tab_length = 0
 
 -- Use luatab as reference:
 -- https://github.com/alvarosevilla95/luatab.nvim
@@ -125,6 +120,9 @@ function M.format_tabs(tabs)
     end
   end
   local current_tab = tabs[current]
+  local before_over = false
+  local after_over = false
+
   if current_tab == nil then
     local t = Tab:new({ tabnr = vim.fn.tabpagenr() })
     t.current = true
@@ -135,8 +133,6 @@ function M.format_tabs(tabs)
     local i = 0
     local before, after
 
-    local before_over = false
-    local after_over = false
     for i = 1, 5 do
       before = tabs[current - i]
       after = tabs[current + i]
@@ -159,23 +155,21 @@ function M.format_tabs(tabs)
         end
       end
     end
+  end
 
-    if before_over then
-      line = "%#tabline_inactive_tab#..." .. line
-    end
-    if after_over then
-      line = line .. "%#tabline_inactive_tab#..."
-    end
+  -- 余裕を持って5足す
+  M.total_tab_length = (total_count * 3) + 5
+
+  if before_over then
+    line = "%#tabline_inactive_tab#..." .. line
+    M.total_tab_length = M.total_tab_length + 3
   end
-  M.total_tab_length = total_count
-  if #tabs == 1 and tabs[1].name ~= "1 " then
-    line = "%=%#TabLineFill#%999X" .. line
-  elseif #tabs > 1 then
-    line = "%=%#TabLineFill#%999X" .. line
-  else
-    line = "%=%#TabLineFill#%999X"
-    M.total_tab_length = 0
+  if after_over then
+    line = line .. "%#tabline_inactive_tab#..."
+    M.total_tab_length = M.total_tab_length + 3
   end
+
+
   return line
 end
 
@@ -218,8 +212,10 @@ function Buffer:get_props()
   end
   if dev and M.options.show_devicons then
     self.icon = dev
+    self.icon_hl = devhl
   else
     self.icon = ""
+    self.icon_hl = ""
   end
   self.name = self:name()
   return self
@@ -234,8 +230,12 @@ function split(s, delimiter)
 end
 
 function Buffer:len()
-  local margin = 2
-  return vim.fn.strchars(" " .. " " .. " " .. self.name .. " ") + margin
+  -- スペース、アイコン、スペース、名称、スペース
+  local length = 3 + vim.fn.strchars(self.name) + 1
+  if self.current then
+    length = length + 2
+  end
+  return length
 end
 
 function Buffer:name()
@@ -272,16 +272,17 @@ function Buffer:hl()
 end
 
 function Buffer:render()
-  local line = self:hl()
-    .. " "
-    .. self.icon
-    .. " "
-    .. self.name
-    .. " "
+  local line = self:hl() .. " "
 
-    if self.current then
-      line = "%#tabline_current_buffer# %#tabline_current_accent#▍" .. line
-    end
+  if self.icon ~= "" then
+    line = line .. self.icon .. " "
+  end
+
+  line = line .. self.name .. " "
+
+  if self.current then
+    line = "%#tabline_current_buffer# %#tabline_current_accent#▍" .. line
+  end
   return line
 end
 
@@ -290,12 +291,9 @@ function Buffer:window_count()
   return nwins > 1 and "(" .. nwins .. ") " or ""
 end
 
-function M.format_buffers(buffers, max_length)
-  if max_length == nil then
-    max_length = math.max(vim.o.columns * 2 / 3, vim.o.columns - M.total_tab_length)
-  else
-    max_length = math.min(math.floor(vim.o.columns * max_length / 100), vim.o.columns - M.total_tab_length)
-  end
+function M.format_buffers(buffers)
+  -- ... の分も加算
+  local max_length = vim.o.columns - M.total_tab_length - ((3 + 1) * 2)
 
   local line = ""
   local total_length = 0
@@ -414,7 +412,7 @@ function M.tabline_buffers(opt)
       buffer.aftercurrent = true
     end
   end
-  line = M.format_buffers(buffers, M.options.max_bufferline_percent)
+  line = M.format_buffers(buffers)
   return line
 end
 
@@ -512,51 +510,6 @@ function M.setup(opts)
     opts.options = {}
   end
 
-  -- local status, _ = pcall(require, "lualine.config")
-  -- if status then
-  --   local lc = require("lualine.config")
-  --   local cs, ss
-  --   if lc.config then
-  --     cs = lc.config.options.component_separators
-  --     ss = lc.config.options.section_separators
-  --     M.options.component_left = cs[1]
-  --     M.options.component_right = cs[2]
-  --     M.options.section_left = ss[1]
-  --     M.options.section_right = ss[2]
-  --   elseif lc.get_config then
-  --     cs = lc.get_config().options.component_separators
-  --     ss = lc.get_config().options.section_separators
-  --     M.options.component_left = cs.left
-  --     M.options.component_right = cs.right
-  --     M.options.section_left = ss.left
-  --     M.options.section_right = ss.right
-  --   else
-  --     error("Unable to load separators from lualine")
-  --   end
-  -- end
-
-  -- if opts.options.component_separators ~= nil then
-  --   M.options.component_left = opts.options.component_separators[1]
-  --   M.options.component_right = opts.options.component_separators[2]
-  -- end
-  --
-  -- if opts.options.section_separators ~= nil then
-  --   M.options.section_left = opts.options.section_separators[1]
-  --   M.options.section_right = opts.options.section_separators[2]
-  -- end
-
-  if opts.options.max_bufferline_percent then
-    if opts.options.max_bufferline_percent <= 100 and opts.options.max_bufferline_percent >= 0 then
-      M.options.max_bufferline_percent = opts.options.max_bufferline_percent
-    end
-  end
-
-  if opts.options.always_show_tabs or opts.options.show_tabs_always then
-    M.options.show_tabs_always = opts.options.show_tabs_always or opts.options.always_show_tabs
-  else
-    M.options.show_tabs_always = vim.g.tabline_show_tabs_always
-  end
-
   if opts.options.show_devicons then
     M.options.show_devicons = opts.options.show_devicons
   else
@@ -581,7 +534,7 @@ function M.setup(opts)
 
     hi tabline_current_buffer guibg=#333333 guifg=#FFFFFF
     hi tabline_current_modified_buffer guibg=#333333 guifg=#d48585
-    hi tabline_inactive_buffer guibg=#000000 guifg=#444444
+    hi tabline_inactive_buffer guibg=#000000 guifg=#666666
     hi tabline_inactive_modified_buffer guibg=#000000 guifg=#9b6161
     hi tabline_current_accent guibg=#333333 guifg=#5FABE9
     hi tabline_inactive_accent guibg=#000000 guifg=#5FABE9
@@ -597,7 +550,8 @@ function M.setup(opts)
 
   function _G.tabline_buffers_tabs()
     local tabs = M.tabline_tabs(M.options)
-    return M.tabline_buffers(M.options) .. tabs
+    local buffers = M.tabline_buffers(M.options)
+    return tabs .. buffers
   end
 
   if opts.enable then
